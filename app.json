@@ -2,7 +2,7 @@
   "expo": {
     "name": "Benim Havam",
     "slug": "Benim-Havam",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",

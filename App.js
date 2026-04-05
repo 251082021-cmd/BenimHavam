@@ -2,33 +2,24 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Image, Alert, Modal, ScrollView, Dimensions, StatusBar, Animated, Easing } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker, Polygon } from 'react-native-maps'; // PROVIDER_GOOGLE kaldırıldı
+import MapView, { Marker } from 'react-native-maps'; // Polygon ve PROVIDER_GOOGLE kaldırıldı
 
 const { width, height } = Dimensions.get('window');
 
-// API Anahtarı Çekme
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
 
 // --- ANİMASYON BİLEŞENLERİ ---
 const SunWithRays = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.2, duration: 3000, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.timing(rotateAnim, { toValue: 1, duration: 25000, easing: Easing.linear, useNativeDriver: true })
-    ).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 1.2, duration: 3000, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
+    ])).start();
+    Animated.loop(Animated.timing(rotateAnim, { toValue: 1, duration: 25000, easing: Easing.linear, useNativeDriver: true })).start();
   }, []);
-
   const spin = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-
   return (
     <View style={styles.celestialContainer}>
       <Animated.View style={[styles.sunRays, { transform: [{ rotate: spin }, { scale: scaleAnim }] }]} />
@@ -39,16 +30,12 @@ const SunWithRays = () => {
 
 const MoonWithStars = () => {
   const glowAnim = useRef(new Animated.Value(1)).current;
-
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1.25, duration: 4000, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
-      ])
-    ).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(glowAnim, { toValue: 1.25, duration: 4000, useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
+    ])).start();
   }, []);
-
   return (
     <View style={styles.celestialContainer}>
       <Animated.View style={[styles.moonGlow, { transform: [{ scale: glowAnim }] }]} />
@@ -62,18 +49,10 @@ const MoonWithStars = () => {
 };
 
 const WeatherParticles = ({ type }) => {
-  const particles = useMemo(() => Array.from({ length: 30 }).map((_, i) => ({
-    id: i,
-    startX: Math.random() * width,
-    delay: Math.random() * 2000,
-    duration: type === 'Snow' ? 6000 : 1200
+  const particles = useMemo(() => Array.from({ length: 25 }).map((_, i) => ({
+    id: i, startX: Math.random() * width, delay: Math.random() * 2000, duration: type === 'Snow' ? 6000 : 1200
   })), [type]);
-
-  return (
-    <View style={StyleSheet.absoluteFillObject}>
-      {particles.map(p => <Particle key={p.id} {...p} type={type} />)}
-    </View>
-  );
+  return <View style={StyleSheet.absoluteFillObject}>{particles.map(p => <Particle key={p.id} {...p} type={type} />)}</View>;
 };
 
 const Particle = ({ delay, startX, duration, type }) => {
@@ -86,20 +65,6 @@ const Particle = ({ delay, startX, duration, type }) => {
     startFall();
   }, []);
   return <Animated.View style={[type === 'Snow' ? styles.snowFlake : styles.rainDrop, { left: startX, transform: [{ translateY: anim }] }]} />;
-};
-
-const getTerminatorCoordinates = () => {
-  const now = new Date();
-  const julianDay = (now.getTime() / 86400000) - (now.getTimezoneOffset() / 1440) + 2440587.5;
-  const n = julianDay - 2451545.0;
-  const delta = Math.asin(Math.sin(23.439 * Math.PI / 180) * Math.sin(((280.460 + 0.9856474 * n) % 360) * Math.PI / 180)) * 180 / Math.PI;
-  const ha = (now.getUTCHours() * 15) + (now.getUTCMinutes() / 4);
-  let coords = [];
-  for (let i = -180; i <= 180; i += 15) {
-    const lat = Math.atan(-Math.cos((i + ha) * Math.PI / 180) / Math.tan(delta * Math.PI / 180)) * 180 / Math.PI;
-    coords.push({ latitude: Math.max(Math.min(lat, 85), -85), longitude: i });
-  }
-  return [...coords, { latitude: delta > 0 ? -85 : 85, longitude: 180 }, { latitude: delta > 0 ? -85 : 85, longitude: -180 }];
 };
 
 export default function App() {
@@ -115,9 +80,7 @@ export default function App() {
   const [tumVeriler, setTumVeriler] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [mapRegion, setMapRegion] = useState({ latitude: 41.2797, longitude: 36.3361, latitudeDelta: 5, longitudeDelta: 5 }); // Varsayılan Samsun
-
-  const terminator = useMemo(() => getTerminatorCoordinates(), []);
+  const [mapRegion, setMapRegion] = useState({ latitude: 41.2797, longitude: 36.3361, latitudeDelta: 8, longitudeDelta: 8 });
 
   useEffect(() => { ilkKonumGetir(); }, []);
 
@@ -152,22 +115,13 @@ export default function App() {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status === 'granted') {
       try {
-        // Konum için 5 saniye sınır koyduk (Açılış hızı için kritik)
-        let loc = await Location.getCurrentPositionAsync({ 
-          accuracy: Location.Accuracy.Low,
-          timeout: 5000 
-        });
+        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low, timeout: 5000 });
         const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setUserLocation(coords);
         setMapRegion(p => ({ ...p, ...coords }));
         apiCek(coords.latitude, coords.longitude);
-      } catch (err) {
-        // Konum alınamazsa varsayılan Samsun koordinatlarıyla devam et
-        apiCek(41.2797, 36.3361);
-      }
-    } else {
-      apiCek(41.2797, 36.3361);
-    }
+      } catch (err) { apiCek(41.2797, 36.3361); }
+    } else { apiCek(41.2797, 36.3361); }
   };
 
   const detayGoster = (item) => {
@@ -184,7 +138,6 @@ export default function App() {
     <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={isNight ? ['#020111', '#191970'] : ['#4facfe', '#00f2fe']} style={StyleSheet.absoluteFill} />
-
       {simdikiHava && (
         <>
           {isNight ? <MoonWithStars /> : <SunWithRays />}
@@ -192,9 +145,7 @@ export default function App() {
           {weatherMain === 'Snow' && <WeatherParticles type="Snow" />}
         </>
       )}
-
       <Text style={styles.signature}>made by SAD</Text>
-
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.circleBtn} onPress={ilkKonumGetir}><Text style={{fontSize: 22}}>📍</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.circleBtn, {backgroundColor: '#FFD700'}]} onPress={() => setMapVisible(true)}><Text style={{fontSize: 22}}>🌍</Text></TouchableOpacity>
@@ -208,23 +159,17 @@ export default function App() {
               <View style={styles.timeBadge}><Text style={styles.timeText}>YEREL SAAT: {yerelSaat}</Text></View>
               <Text style={styles.heroTemp}>{Math.round(simdikiHava.main.temp)}°</Text>
               <Text style={styles.heroDesc}>{simdikiHava.weather[0].description.toUpperCase()}</Text>
-              <TouchableOpacity style={styles.detailBtn} onPress={() => detayGoster(simdikiHava)}>
-                 <Text style={styles.detailBtnText}>ANALİZİ GÖR 🕒</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.detailBtn} onPress={() => detayGoster(simdikiHava)}><Text style={styles.detailBtnText}>ANALİZİ GÖR 🕒</Text></TouchableOpacity>
             </View>
             <View style={styles.panel}>
               <View style={styles.handle} />
-              <FlatList 
-                data={tahminler}
-                renderItem={({item}) => (
-                  <TouchableOpacity style={styles.row} onPress={() => detayGoster(item)}>
-                    <Text style={styles.rowDay}>{new Date(item.dt*1000).toLocaleDateString('tr-TR', {weekday:'long'})}</Text>
-                    <Image style={{width:50, height:50}} source={{uri: `https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`}} />
-                    <Text style={styles.rowTemp}>{Math.round(item.main.temp)}°</Text>
-                  </TouchableOpacity>
-                )}
-                showsVerticalScrollIndicator={false}
-              />
+              <FlatList data={tahminler} renderItem={({item}) => (
+                <TouchableOpacity style={styles.row} onPress={() => detayGoster(item)}>
+                  <Text style={styles.rowDay}>{new Date(item.dt*1000).toLocaleDateString('tr-TR', {weekday:'long'})}</Text>
+                  <Image style={{width:50, height:50}} source={{uri: `https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`}} />
+                  <Text style={styles.rowTemp}>{Math.round(item.main.temp)}°</Text>
+                </TouchableOpacity>
+              )} showsVerticalScrollIndicator={false} />
             </View>
           </View>
         )}
@@ -246,13 +191,12 @@ export default function App() {
 
       <Modal visible={mapVisible} animationType="fade">
         <View style={{flex: 1, backgroundColor: '#000'}}>
-          <MapView style={StyleSheet.absoluteFill} region={mapRegion} onRegionChangeComplete={setMapRegion} minZoomLevel={1}
+          <MapView style={StyleSheet.absoluteFill} region={mapRegion} onRegionChangeComplete={setMapRegion}
             onLongPress={(e) => {
               const c = e.nativeEvent.coordinate;
               setSelectedLocation(c); setMapRegion(p => ({ ...p, ...c }));
               apiCek(c.latitude, c.longitude); setMapVisible(false);
             }}>
-            <Polygon coordinates={terminator} fillColor="rgba(0, 0, 30, 0.4)" strokeWidth={0} />
             {userLocation && <Marker coordinate={userLocation} pinColor="red" />}
             {selectedLocation && <Marker coordinate={selectedLocation} pinColor="blue" />}
           </MapView>
