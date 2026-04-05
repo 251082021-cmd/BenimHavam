@@ -1,15 +1,30 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# --- BAĞIMLILIKLAR ---
 node_modules/
+package-lock.json
+yarn.lock
 
-# Expo
+# --- EXPO & METRO ---
 .expo/
 dist/
 web-build/
 expo-env.d.ts
+.metro-health-check*
 
-# Native
+# --- YEREL AYARLAR & GİZLİ DOSYALAR (KRİTİK!) ---
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build konfigürasyonu (API anahtarı içeriyorsa gizli kalmalı)
+eas.json
+
+# --- NATIVE (ANDROID/IOS) ---
+/ios
+/android
 .kotlin/
 *.orig.*
 *.jks
@@ -18,29 +33,16 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
-
-# debug
+# --- DEBUG & LOGS ---
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
-# macOS
+# --- SİSTEM DOSYALARI ---
 .DS_Store
 *.pem
+Thumbs.db
 
-# local env files
-.env*.local
-
-# typescript
+# --- TYPESCRIPT ---
 *.tsbuildinfo
-
-# generated native folders
-/ios
-/android
-
-.env
-node_modules/
-.expo/
-dist/

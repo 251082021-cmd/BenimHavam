@@ -6,7 +6,10 @@ import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const { width, height } = Dimensions.get('window');
 
-// --- 1. GÜNEŞ IŞIĞI ANİMASYONU (Pulsing Rays) ---
+// API Anahtarı Çekme (Hem yerel hem build uyumlu)
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
+
+// --- ANİMASYON BİLEŞENLERİ (Güneş, Ay, Yağış) ---
 const SunWithRays = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -34,12 +37,10 @@ const SunWithRays = () => {
   );
 };
 
-// --- 2. AY VE YILDIZLAR ANİMASYONU (Moonlight Glow) ---
 const MoonWithStars = () => {
   const glowAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Ay ışığı için yavaş ve huzurlu bir pulsing (nefes alma)
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, { toValue: 1.25, duration: 4000, useNativeDriver: true }),
@@ -50,10 +51,8 @@ const MoonWithStars = () => {
 
   return (
     <View style={styles.celestialContainer}>
-      {/* --- YENİ AY IŞIĞI KATMANI --- */}
       <Animated.View style={[styles.moonGlow, { transform: [{ scale: glowAnim }] }]} />
       <View style={styles.moon} />
-      {/* Yıldızlar */}
       <View style={[styles.star, { top: -45, left: -30 }]} />
       <View style={[styles.star, { top: 35, left: -60, opacity: 0.5 }]} />
       <View style={[styles.star, { top: -20, left: 55 }]} />
@@ -62,14 +61,14 @@ const MoonWithStars = () => {
   );
 };
 
-// --- 3. YAĞIŞ EFEKTLERİ (Rain/Snow) ---
 const WeatherParticles = ({ type }) => {
-  const particles = Array.from({ length: 30 }).map((_, i) => ({
+  const particles = useMemo(() => Array.from({ length: 30 }).map((_, i) => ({
     id: i,
     startX: Math.random() * width,
     delay: Math.random() * 2000,
     duration: type === 'Snow' ? 6000 : 1200
-  }));
+  })), [type]);
+
   return (
     <View style={StyleSheet.absoluteFillObject}>
       {particles.map(p => <Particle key={p.id} {...p} type={type} />)}
@@ -89,7 +88,6 @@ const Particle = ({ delay, startX, duration, type }) => {
   return <Animated.View style={[type === 'Snow' ? styles.snowFlake : styles.rainDrop, { left: startX, transform: [{ translateY: anim }] }]} />;
 };
 
-// --- GECE SINIRI HESABI (Mercator Safelocked) ---
 const getTerminatorCoordinates = () => {
   const now = new Date();
   const julianDay = (now.getTime() / 86400000) - (now.getTimezoneOffset() / 1440) + 2440587.5;
@@ -119,8 +117,7 @@ export default function App() {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [mapRegion, setMapRegion] = useState({ latitude: 39, longitude: 35, latitudeDelta: 30, longitudeDelta: 30 });
 
-  const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
-  const terminator = useMemo(() => getTerminatorCoordinates(), [new Date().getHours()]);
+  const terminator = useMemo(() => getTerminatorCoordinates(), []);
 
   useEffect(() => { ilkKonumGetir(); }, []);
 
@@ -147,7 +144,7 @@ export default function App() {
         });
         setTahminler(Object.values(gunler).slice(0, 6));
       }
-    } catch (e) { Alert.alert("Hata", "Veri alınamadı."); }
+    } catch (e) { Alert.alert("Hata", "Veri alınamadı. API anahtarını kontrol edin."); }
     finally { setYukleniyor(false); }
   };
 
@@ -177,7 +174,6 @@ export default function App() {
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={isNight ? ['#020111', '#191970'] : ['#4facfe', '#00f2fe']} style={StyleSheet.absoluteFill} />
 
-      {/* --- ANİMASYON KATMANI --- */}
       {simdikiHava && (
         <>
           {isNight ? <MoonWithStars /> : <SunWithRays />}
@@ -216,17 +212,17 @@ export default function App() {
                     <Text style={styles.rowTemp}>{Math.round(item.main.temp)}°</Text>
                   </TouchableOpacity>
                 )}
+                showsVerticalScrollIndicator={false}
               />
             </View>
           </View>
         )}
       </View>
 
-      {/* MODAL & MAP (Stabil Kısımlar) */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalBg}><View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{secilenBaslik.toUpperCase()}</Text>
-            <ScrollView horizontal>{secilenGunDetay.map((h, i) => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>{secilenGunDetay.map((h, i) => (
                 <View key={i} style={styles.hourCard}>
                   <Text style={styles.hourTime}>{h.dt_txt.split(' ')[1].slice(0,5)}</Text>
                   <Image style={{width:45, height:45}} source={{uri: `https://openweathermap.org/img/wn/${h.weather[0].icon}.png` }} />
@@ -274,19 +270,14 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
   rowDay: { color: 'white', fontSize: 18, fontWeight: '600', flex: 1 },
   rowTemp: { color: 'white', fontSize: 26, fontWeight: 'bold' },
-  
-  // GÖKSEL CİSİM STİLLERİ
   celestialContainer: { position: 'absolute', top: 165, right: -15, alignItems: 'center', justifyContent: 'center' },
   sun: { width: 85, height: 85, backgroundColor: '#FFD700', borderRadius: 43, zIndex: 2 },
   sunRays: { position: 'absolute', width: 140, height: 140, backgroundColor: 'rgba(255, 215, 0, 0.15)', borderRadius: 70, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.2)', zIndex: 1 },
-  
-  moon: { width: 75, height: 75, backgroundColor: '#fdfce1', borderRadius: 38, shadowColor: '#fff', shadowRadius: 20, shadowOpacity: 0.6, zIndex: 2 },
+  moon: { width: 75, height: 75, backgroundColor: '#fdfce1', borderRadius: 38, zIndex: 2 },
   moonGlow: { position: 'absolute', width: 125, height: 125, backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 63, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', zIndex: 1 },
-  
   star: { position: 'absolute', width: 3, height: 3, backgroundColor: 'white', borderRadius: 2 },
   rainDrop: { position: 'absolute', width: 1.5, height: 20, backgroundColor: 'rgba(255,255,255,0.4)' },
   snowFlake: { position: 'absolute', width: 6, height: 6, backgroundColor: 'white', borderRadius: 3 },
-
   modalBg: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.8)' },
   modalContent: { backgroundColor: '#111', padding: 35, borderTopLeftRadius: 50, borderTopRightRadius: 50, alignItems: 'center' },
   modalTitle: { color: '#FFD700', fontSize: 18, fontWeight: 'bold', marginBottom: 20 },

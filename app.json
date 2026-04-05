@@ -22,6 +22,7 @@
         "foregroundImage": "./icon.png",
         "backgroundColor": "#191970"
       },
+      
       "package": "com.broski.benimhavam"
     },
     "web": {
