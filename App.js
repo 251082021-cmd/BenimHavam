@@ -6,7 +6,7 @@ import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const { width, height } = Dimensions.get('window');
 
-// --- 1. GELİŞMİŞ GÜNEŞ IŞIĞI ANİMASYONU ---
+// --- 1. GÜNEŞ IŞIĞI ANİMASYONU (Pulsing Rays) ---
 const SunWithRays = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -20,7 +20,7 @@ const SunWithRays = () => {
     ).start();
 
     Animated.loop(
-      Animated.timing(rotateAnim, { toValue: 1, duration: 20000, easing: Easing.linear, useNativeDriver: true })
+      Animated.timing(rotateAnim, { toValue: 1, duration: 25000, easing: Easing.linear, useNativeDriver: true })
     ).start();
   }, []);
 
@@ -34,25 +34,41 @@ const SunWithRays = () => {
   );
 };
 
-// --- 2. AY VE YILDIZLAR ---
+// --- 2. AY VE YILDIZLAR ANİMASYONU (Moonlight Glow) ---
 const MoonWithStars = () => {
+  const glowAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Ay ışığı için yavaş ve huzurlu bir pulsing (nefes alma)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1.25, duration: 4000, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
   return (
     <View style={styles.celestialContainer}>
+      {/* --- YENİ AY IŞIĞI KATMANI --- */}
+      <Animated.View style={[styles.moonGlow, { transform: [{ scale: glowAnim }] }]} />
       <View style={styles.moon} />
-      <View style={[styles.star, { top: -30, left: -40 }]} />
-      <View style={[styles.star, { top: 40, left: -60, opacity: 0.5 }]} />
-      <View style={[styles.star, { top: -20, left: 50 }]} />
+      {/* Yıldızlar */}
+      <View style={[styles.star, { top: -45, left: -30 }]} />
+      <View style={[styles.star, { top: 35, left: -60, opacity: 0.5 }]} />
+      <View style={[styles.star, { top: -20, left: 55 }]} />
+      <View style={[styles.star, { top: 50, left: 40, opacity: 0.7 }]} />
     </View>
   );
 };
 
-// --- 3. YAĞIŞ EFEKTLERİ (Yağmur/Kar) ---
+// --- 3. YAĞIŞ EFEKTLERİ (Rain/Snow) ---
 const WeatherParticles = ({ type }) => {
-  const particles = Array.from({ length: 25 }).map((_, i) => ({
+  const particles = Array.from({ length: 30 }).map((_, i) => ({
     id: i,
     startX: Math.random() * width,
     delay: Math.random() * 2000,
-    duration: type === 'Snow' ? 5000 : 1000
+    duration: type === 'Snow' ? 6000 : 1200
   }));
   return (
     <View style={StyleSheet.absoluteFillObject}>
@@ -73,7 +89,7 @@ const Particle = ({ delay, startX, duration, type }) => {
   return <Animated.View style={[type === 'Snow' ? styles.snowFlake : styles.rainDrop, { left: startX, transform: [{ translateY: anim }] }]} />;
 };
 
-// --- GECE SINIRI HESABI ---
+// --- GECE SINIRI HESABI (Mercator Safelocked) ---
 const getTerminatorCoordinates = () => {
   const now = new Date();
   const julianDay = (now.getTime() / 86400000) - (now.getTimezoneOffset() / 1440) + 2440587.5;
@@ -161,7 +177,7 @@ export default function App() {
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={isNight ? ['#020111', '#191970'] : ['#4facfe', '#00f2fe']} style={StyleSheet.absoluteFill} />
 
-      {/* --- ANİMASYON KATMANLARI --- */}
+      {/* --- ANİMASYON KATMANI --- */}
       {simdikiHava && (
         <>
           {isNight ? <MoonWithStars /> : <SunWithRays />}
@@ -206,7 +222,7 @@ export default function App() {
         )}
       </View>
 
-      {/* MODAL VE HARİTA (Kodun geri kalanı stabil olduğu için aynı kalsın) */}
+      {/* MODAL & MAP (Stabil Kısımlar) */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalBg}><View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{secilenBaslik.toUpperCase()}</Text>
@@ -259,11 +275,14 @@ const styles = StyleSheet.create({
   rowDay: { color: 'white', fontSize: 18, fontWeight: '600', flex: 1 },
   rowTemp: { color: 'white', fontSize: 26, fontWeight: 'bold' },
   
-  // ANİMASYON STİLLERİ
-  celestialContainer: { position: 'absolute', top: 160, right: -15, alignItems: 'center', justifyContent: 'center' },
-  sun: { width: 80, height: 80, backgroundColor: '#FFD700', borderRadius: 40, zIndex: 2 },
-  sunRays: { position: 'absolute', width: 130, height: 130, backgroundColor: 'rgba(255, 215, 0, 0.2)', borderRadius: 65, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.3)', zIndex: 1 },
-  moon: { width: 70, height: 70, backgroundColor: '#f5f3ce', borderRadius: 35, shadowColor: '#fff', shadowRadius: 15, shadowOpacity: 0.5 },
+  // GÖKSEL CİSİM STİLLERİ
+  celestialContainer: { position: 'absolute', top: 165, right: -15, alignItems: 'center', justifyContent: 'center' },
+  sun: { width: 85, height: 85, backgroundColor: '#FFD700', borderRadius: 43, zIndex: 2 },
+  sunRays: { position: 'absolute', width: 140, height: 140, backgroundColor: 'rgba(255, 215, 0, 0.15)', borderRadius: 70, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.2)', zIndex: 1 },
+  
+  moon: { width: 75, height: 75, backgroundColor: '#fdfce1', borderRadius: 38, shadowColor: '#fff', shadowRadius: 20, shadowOpacity: 0.6, zIndex: 2 },
+  moonGlow: { position: 'absolute', width: 125, height: 125, backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 63, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', zIndex: 1 },
+  
   star: { position: 'absolute', width: 3, height: 3, backgroundColor: 'white', borderRadius: 2 },
   rainDrop: { position: 'absolute', width: 1.5, height: 20, backgroundColor: 'rgba(255,255,255,0.4)' },
   snowFlake: { position: 'absolute', width: 6, height: 6, backgroundColor: 'white', borderRadius: 3 },
