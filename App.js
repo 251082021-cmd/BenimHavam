@@ -1,11 +1,79 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Image, Alert, Modal, ScrollView, Dimensions, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Image, Alert, Modal, ScrollView, Dimensions, StatusBar, Animated, Easing } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const { width, height } = Dimensions.get('window');
 
+// --- 1. GELİŞMİŞ GÜNEŞ IŞIĞI ANİMASYONU ---
+const SunWithRays = () => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 1.2, duration: 3000, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(rotateAnim, { toValue: 1, duration: 20000, easing: Easing.linear, useNativeDriver: true })
+    ).start();
+  }, []);
+
+  const spin = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  return (
+    <View style={styles.celestialContainer}>
+      <Animated.View style={[styles.sunRays, { transform: [{ rotate: spin }, { scale: scaleAnim }] }]} />
+      <View style={styles.sun} />
+    </View>
+  );
+};
+
+// --- 2. AY VE YILDIZLAR ---
+const MoonWithStars = () => {
+  return (
+    <View style={styles.celestialContainer}>
+      <View style={styles.moon} />
+      <View style={[styles.star, { top: -30, left: -40 }]} />
+      <View style={[styles.star, { top: 40, left: -60, opacity: 0.5 }]} />
+      <View style={[styles.star, { top: -20, left: 50 }]} />
+    </View>
+  );
+};
+
+// --- 3. YAĞIŞ EFEKTLERİ (Yağmur/Kar) ---
+const WeatherParticles = ({ type }) => {
+  const particles = Array.from({ length: 25 }).map((_, i) => ({
+    id: i,
+    startX: Math.random() * width,
+    delay: Math.random() * 2000,
+    duration: type === 'Snow' ? 5000 : 1000
+  }));
+  return (
+    <View style={StyleSheet.absoluteFillObject}>
+      {particles.map(p => <Particle key={p.id} {...p} type={type} />)}
+    </View>
+  );
+};
+
+const Particle = ({ delay, startX, duration, type }) => {
+  const anim = useRef(new Animated.Value(-50)).current;
+  useEffect(() => {
+    const startFall = () => {
+      anim.setValue(-50);
+      Animated.timing(anim, { toValue: height, duration, delay, easing: Easing.linear, useNativeDriver: true }).start(() => startFall());
+    };
+    startFall();
+  }, []);
+  return <Animated.View style={[type === 'Snow' ? styles.snowFlake : styles.rainDrop, { left: startX, transform: [{ translateY: anim }] }]} />;
+};
+
+// --- GECE SINIRI HESABI ---
 const getTerminatorCoordinates = () => {
   const now = new Date();
   const julianDay = (now.getTime() / 86400000) - (now.getTimezoneOffset() / 1440) + 2440587.5;
@@ -14,14 +82,10 @@ const getTerminatorCoordinates = () => {
   const ha = (now.getUTCHours() * 15) + (now.getUTCMinutes() / 4);
   let coords = [];
   for (let i = -180; i <= 180; i += 15) {
-    const lon = i;
-    const lat = Math.atan(-Math.cos((lon + ha) * Math.PI / 180) / Math.tan(delta * Math.PI / 180)) * 180 / Math.PI;
-    const safeLat = Math.max(Math.min(lat, 85), -85);
-    coords.push({ latitude: safeLat, longitude: lon });
+    const lat = Math.atan(-Math.cos((i + ha) * Math.PI / 180) / Math.tan(delta * Math.PI / 180)) * 180 / Math.PI;
+    coords.push({ latitude: Math.max(Math.min(lat, 85), -85), longitude: i });
   }
-  const isSummer = delta > 0;
-  coords.push({ latitude: isSummer ? -85 : 85, longitude: 180 }, { latitude: isSummer ? -85 : 85, longitude: -180 });
-  return coords;
+  return [...coords, { latitude: delta > 0 ? -85 : 85, longitude: 180 }, { latitude: delta > 0 ? -85 : 85, longitude: -180 }];
 };
 
 export default function App() {
@@ -37,17 +101,9 @@ export default function App() {
   const [tumVeriler, setTumVeriler] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  
-  // HARİTA HAFIZASI İÇİN REGION STATE'İ
-  const [mapRegion, setMapRegion] = useState({
-    latitude: 39,
-    longitude: 35,
-    latitudeDelta: 30,
-    longitudeDelta: 30
-  });
+  const [mapRegion, setMapRegion] = useState({ latitude: 39, longitude: 35, latitudeDelta: 30, longitudeDelta: 30 });
 
- 
-const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
+  const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
   const terminator = useMemo(() => getTerminatorCoordinates(), [new Date().getHours()]);
 
   useEffect(() => { ilkKonumGetir(); }, []);
@@ -70,12 +126,12 @@ const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
         setSimdikiHava(data.list[0]);
         const gunler = {};
         data.list.forEach(item => {
-          const date = item.dt_txt.split(' ')[0];
-          if (!gunler[date] || item.dt_txt.includes("12:00:00")) gunler[date] = item;
+          const d = item.dt_txt.split(' ')[0];
+          if (!gunler[d] || item.dt_txt.includes("12:00:00")) gunler[d] = item;
         });
         setTahminler(Object.values(gunler).slice(0, 6));
       }
-    } catch (e) { Alert.alert("Hata", "Veri çekilemedi."); }
+    } catch (e) { Alert.alert("Hata", "Veri alınamadı."); }
     finally { setYukleniyor(false); }
   };
 
@@ -85,25 +141,34 @@ const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
       let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setUserLocation(coords);
-      setMapRegion({ ...mapRegion, ...coords }); // Haritayı başlangıçta senin konumuna odakla
+      setMapRegion(p => ({ ...p, ...coords }));
       apiCek(coords.latitude, coords.longitude);
     }
   };
 
   const detayGoster = (item) => {
     const tarih = item.dt_txt.split(' ')[0];
-    const gunlukFiltre = tumVeriler.filter(v => v.dt_txt.startsWith(tarih));
-    setSecilenGunDetay(gunlukFiltre);
+    setSecilenGunDetay(tumVeriler.filter(v => v.dt_txt.startsWith(tarih)));
     setSecilenBaslik(new Date(item.dt * 1000).toLocaleDateString('tr-TR', { weekday: 'long' }));
     setModalVisible(true);
   };
 
   const isNight = simdikiHava?.weather[0].icon.includes('n');
+  const weatherMain = simdikiHava?.weather[0].main;
 
   return (
     <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={isNight ? ['#020111', '#191970'] : ['#4facfe', '#00f2fe']} style={StyleSheet.absoluteFill} />
+
+      {/* --- ANİMASYON KATMANLARI --- */}
+      {simdikiHava && (
+        <>
+          {isNight ? <MoonWithStars /> : <SunWithRays />}
+          {weatherMain === 'Rain' && <WeatherParticles type="Rain" />}
+          {weatherMain === 'Snow' && <WeatherParticles type="Snow" />}
+        </>
+      )}
 
       <Text style={styles.signature}>made by SAD</Text>
 
@@ -120,18 +185,14 @@ const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
               <View style={styles.timeBadge}><Text style={styles.timeText}>YEREL SAAT: {yerelSaat}</Text></View>
               <Text style={styles.heroTemp}>{Math.round(simdikiHava.main.temp)}°</Text>
               <Text style={styles.heroDesc}>{simdikiHava.weather[0].description.toUpperCase()}</Text>
-              
               <TouchableOpacity style={styles.detailBtn} onPress={() => detayGoster(simdikiHava)}>
-                 <Text style={styles.detailBtnText}>BUGÜNÜN DETAYI 🕒</Text>
+                 <Text style={styles.detailBtnText}>ANALİZİ GÖR 🕒</Text>
               </TouchableOpacity>
             </View>
-
             <View style={styles.panel}>
               <View style={styles.handle} />
-              <Text style={styles.panelTitle}>HAFTALIK TAHMİN</Text>
               <FlatList 
                 data={tahminler}
-                keyExtractor={item => item.dt.toString()}
                 renderItem={({item}) => (
                   <TouchableOpacity style={styles.row} onPress={() => detayGoster(item)}>
                     <Text style={styles.rowDay}>{new Date(item.dt*1000).toLocaleDateString('tr-TR', {weekday:'long'})}</Text>
@@ -145,44 +206,31 @@ const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
         )}
       </View>
 
+      {/* MODAL VE HARİTA (Kodun geri kalanı stabil olduğu için aynı kalsın) */}
       <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.modalContent}>
-            <View style={styles.handle} />
+        <View style={styles.modalBg}><View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{secilenBaslik.toUpperCase()}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {secilenGunDetay.map((h, i) => (
+            <ScrollView horizontal>{secilenGunDetay.map((h, i) => (
                 <View key={i} style={styles.hourCard}>
                   <Text style={styles.hourTime}>{h.dt_txt.split(' ')[1].slice(0,5)}</Text>
-                  <Image style={{width:50, height:50}} source={{uri: `https://openweathermap.org/img/wn/${h.weather[0].icon}@2x.png` }} />
+                  <Image style={{width:45, height:45}} source={{uri: `https://openweathermap.org/img/wn/${h.weather[0].icon}.png` }} />
                   <Text style={styles.hourDeg}>{Math.round(h.main.temp)}°</Text>
                 </View>
-              ))}
-            </ScrollView>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}><Text style={{color:'black', fontWeight:'bold'}}>KAPAT</Text></TouchableOpacity>
-          </View>
-        </View>
+            ))}</ScrollView>
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}><Text style={{fontWeight:'bold'}}>KAPAT</Text></TouchableOpacity>
+        </View></View>
       </Modal>
 
       <Modal visible={mapVisible} animationType="fade">
         <View style={{flex: 1, backgroundColor: '#000'}}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={StyleSheet.absoluteFill}
-            region={mapRegion} // ARTIK STATİK DEĞİL, STATE'DEN GELİYOR
-            onRegionChangeComplete={(region) => setMapRegion(region)} // HER HAREKETİ HAFIZAYA ALIR
-            minZoomLevel={1}
+          <MapView provider={PROVIDER_GOOGLE} style={StyleSheet.absoluteFill} region={mapRegion} onRegionChangeComplete={setMapRegion} minZoomLevel={1}
             onLongPress={(e) => {
               const c = e.nativeEvent.coordinate;
-              setSelectedLocation(c);
-              // Tıkladığın yeri merkez yap ve hafızaya al
-              setMapRegion({ ...mapRegion, latitude: c.latitude, longitude: c.longitude });
-              apiCek(c.latitude, c.longitude);
-              setMapVisible(false);
-            }}
-          >
+              setSelectedLocation(c); setMapRegion(p => ({ ...p, ...c }));
+              apiCek(c.latitude, c.longitude); setMapVisible(false);
+            }}>
             <Polygon coordinates={terminator} fillColor="rgba(0, 0, 30, 0.4)" strokeWidth={0} />
-            {userLocation && <Marker coordinate={userLocation} pinColor="red" title="Sen" />}
+            {userLocation && <Marker coordinate={userLocation} pinColor="red" />}
             {selectedLocation && <Marker coordinate={selectedLocation} pinColor="blue" />}
           </MapView>
           <TouchableOpacity style={styles.mapClose} onPress={() => setMapVisible(false)}><Text style={{fontWeight:'bold'}}>GERİ DÖN</Text></TouchableOpacity>
@@ -200,23 +248,32 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center' },
   heroCity: { fontSize: 28, color: 'white', fontWeight: 'bold' },
   timeBadge: { backgroundColor: 'rgba(255, 215, 0, 0.2)', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 20, marginTop: 10 },
-  timeText: { color: '#FFD700', fontWeight: 'bold', fontSize: 13 },
+  timeText: { color: '#FFD700', fontWeight: 'bold', fontSize: 12 },
   heroTemp: { fontSize: 130, color: 'white', fontWeight: '100', marginVertical: -20 },
   heroDesc: { fontSize: 16, color: 'white', letterSpacing: 4 },
   detailBtn: { backgroundColor: 'rgba(255,255,255,0.15)', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, marginTop: 15, borderWidth: 1, borderColor: 'white' },
   detailBtnText: { color: 'white', fontWeight: 'bold', fontSize: 11 },
   panel: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', borderTopLeftRadius: 60, borderTopRightRadius: 60, padding: 35, marginHorizontal: -20, marginTop: 25 },
   handle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  panelTitle: { color: '#FFD700', textAlign: 'center', fontWeight: 'bold', fontSize: 11, marginBottom: 30, letterSpacing: 2 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
   rowDay: { color: 'white', fontSize: 18, fontWeight: '600', flex: 1 },
   rowTemp: { color: 'white', fontSize: 26, fontWeight: 'bold' },
+  
+  // ANİMASYON STİLLERİ
+  celestialContainer: { position: 'absolute', top: 160, right: -15, alignItems: 'center', justifyContent: 'center' },
+  sun: { width: 80, height: 80, backgroundColor: '#FFD700', borderRadius: 40, zIndex: 2 },
+  sunRays: { position: 'absolute', width: 130, height: 130, backgroundColor: 'rgba(255, 215, 0, 0.2)', borderRadius: 65, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.3)', zIndex: 1 },
+  moon: { width: 70, height: 70, backgroundColor: '#f5f3ce', borderRadius: 35, shadowColor: '#fff', shadowRadius: 15, shadowOpacity: 0.5 },
+  star: { position: 'absolute', width: 3, height: 3, backgroundColor: 'white', borderRadius: 2 },
+  rainDrop: { position: 'absolute', width: 1.5, height: 20, backgroundColor: 'rgba(255,255,255,0.4)' },
+  snowFlake: { position: 'absolute', width: 6, height: 6, backgroundColor: 'white', borderRadius: 3 },
+
   modalBg: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.8)' },
-  modalContent: { backgroundColor: '#111', padding: 35, borderTopLeftRadius: 50, borderTopRightRadius: 50, width: '100%', alignItems: 'center' },
-  modalTitle: { color: '#FFD700', fontSize: 18, fontWeight: 'bold', marginBottom: 25 },
-  hourCard: { alignItems: 'center', marginHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.05)', padding: 15, borderRadius: 20 },
-  hourTime: { color: '#FFD700', fontWeight: 'bold' },
-  hourDeg: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  closeBtn: { marginTop: 30, backgroundColor: '#FFD700', paddingVertical: 14, paddingHorizontal: 40, borderRadius: 25 },
+  modalContent: { backgroundColor: '#111', padding: 35, borderTopLeftRadius: 50, borderTopRightRadius: 50, alignItems: 'center' },
+  modalTitle: { color: '#FFD700', fontSize: 18, fontWeight: 'bold', marginBottom: 20 },
+  hourCard: { alignItems: 'center', marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.05)', padding: 15, borderRadius: 20 },
+  hourTime: { color: '#FFD700', fontSize: 12 },
+  hourDeg: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  closeBtn: { marginTop: 25, backgroundColor: '#FFD700', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 20 },
   mapClose: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: '#FFD700', paddingVertical: 15, paddingHorizontal: 50, borderRadius: 30 }
 });

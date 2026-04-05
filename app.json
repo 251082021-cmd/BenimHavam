@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "BenimHavam",
-    "slug": "benimhavam",
+    "name": "Benim Havam",
+    "slug": "Benim-Havam",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./icon.png",
@@ -26,6 +26,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "93ead338-c63a-44c4-9a7b-020bd8e17bdc"
+      }
     }
   }
 }
