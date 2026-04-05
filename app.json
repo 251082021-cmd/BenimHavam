@@ -2,7 +2,7 @@
   "expo": {
     "name": "Benim Havam",
     "slug": "Benim-Havam",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",
@@ -15,15 +15,20 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.broski.benimhavam"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./icon.png",
         "backgroundColor": "#191970"
       },
-      
-      "package": "com.broski.benimhavam"
+      "package": "com.broski.benimhavam",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

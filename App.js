@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Image, Alert, Modal, ScrollView, Dimensions, StatusBar, Animated, Easing } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polygon } from 'react-native-maps'; // PROVIDER_GOOGLE kaldırıldı
 
 const { width, height } = Dimensions.get('window');
 
-// API Anahtarı Çekme (Hem yerel hem build uyumlu)
+// API Anahtarı Çekme
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
 
-// --- ANİMASYON BİLEŞENLERİ (Güneş, Ay, Yağış) ---
+// --- ANİMASYON BİLEŞENLERİ ---
 const SunWithRays = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -115,7 +115,7 @@ export default function App() {
   const [tumVeriler, setTumVeriler] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [mapRegion, setMapRegion] = useState({ latitude: 39, longitude: 35, latitudeDelta: 30, longitudeDelta: 30 });
+  const [mapRegion, setMapRegion] = useState({ latitude: 41.2797, longitude: 36.3361, latitudeDelta: 5, longitudeDelta: 5 }); // Varsayılan Samsun
 
   const terminator = useMemo(() => getTerminatorCoordinates(), []);
 
@@ -144,18 +144,29 @@ export default function App() {
         });
         setTahminler(Object.values(gunler).slice(0, 6));
       }
-    } catch (e) { Alert.alert("Hata", "Veri alınamadı. API anahtarını kontrol edin."); }
+    } catch (e) { Alert.alert("Hata", "Veri alınamadı."); }
     finally { setYukleniyor(false); }
   };
 
   const ilkKonumGetir = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status === 'granted') {
-      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      setUserLocation(coords);
-      setMapRegion(p => ({ ...p, ...coords }));
-      apiCek(coords.latitude, coords.longitude);
+      try {
+        // Konum için 5 saniye sınır koyduk (Açılış hızı için kritik)
+        let loc = await Location.getCurrentPositionAsync({ 
+          accuracy: Location.Accuracy.Low,
+          timeout: 5000 
+        });
+        const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        setUserLocation(coords);
+        setMapRegion(p => ({ ...p, ...coords }));
+        apiCek(coords.latitude, coords.longitude);
+      } catch (err) {
+        // Konum alınamazsa varsayılan Samsun koordinatlarıyla devam et
+        apiCek(41.2797, 36.3361);
+      }
+    } else {
+      apiCek(41.2797, 36.3361);
     }
   };
 
@@ -235,7 +246,7 @@ export default function App() {
 
       <Modal visible={mapVisible} animationType="fade">
         <View style={{flex: 1, backgroundColor: '#000'}}>
-          <MapView provider={PROVIDER_GOOGLE} style={StyleSheet.absoluteFill} region={mapRegion} onRegionChangeComplete={setMapRegion} minZoomLevel={1}
+          <MapView style={StyleSheet.absoluteFill} region={mapRegion} onRegionChangeComplete={setMapRegion} minZoomLevel={1}
             onLongPress={(e) => {
               const c = e.nativeEvent.coordinate;
               setSelectedLocation(c); setMapRegion(p => ({ ...p, ...c }));
