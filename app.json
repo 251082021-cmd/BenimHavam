@@ -1,26 +1,28 @@
 {
   "expo": {
-    "name": "hava-durumu-sad",
-    "slug": "hava-durumu-sad",
+    "name": "BenimHavam",
+    "slug": "benimhavam",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#191970"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./icon.png",
+        "backgroundColor": "#191970"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.broski.benimhavam"
     },
     "web": {
       "favicon": "./assets/favicon.png"
