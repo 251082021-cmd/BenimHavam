@@ -1,28 +1,22 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# --- BAĞIMLILIKLAR ---
 node_modules/
 package-lock.json
 yarn.lock
 
-# --- EXPO & METRO ---
 .expo/
 dist/
 web-build/
 expo-env.d.ts
 .metro-health-check*
 
-# --- YEREL AYARLAR & GİZLİ DOSYALAR (KRİTİK!) ---
 .env
 .env*.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Build konfigürasyonu (API anahtarı içeriyorsa gizli kalmalı)
 eas.json
 
-# --- NATIVE (ANDROID/IOS) ---
 /ios
 /android
 .kotlin/
@@ -33,16 +27,13 @@ eas.json
 *.key
 *.mobileprovision
 
-# --- DEBUG & LOGS ---
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 *.log
 
-# --- SİSTEM DOSYALARI ---
 .DS_Store
 *.pem
 Thumbs.db
 
-# --- TYPESCRIPT ---
 *.tsbuildinfo

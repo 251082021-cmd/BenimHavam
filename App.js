@@ -2,13 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Image, Alert, Modal, ScrollView, Dimensions, StatusBar, Animated, Easing } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker } from 'react-native-maps'; // Polygon ve PROVIDER_GOOGLE kaldırıldı
+import MapView, { Marker, UrlTile } from 'react-native-maps'; 
 
 const { width, height } = Dimensions.get('window');
-
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
 
-// --- ANİMASYON BİLEŞENLERİ ---
 const SunWithRays = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -80,9 +78,11 @@ export default function App() {
   const [tumVeriler, setTumVeriler] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [mapRegion, setMapRegion] = useState({ latitude: 41.2797, longitude: 36.3361, latitudeDelta: 8, longitudeDelta: 8 });
+  const [mapRegion, setMapRegion] = useState({ latitude: 41.2797, longitude: 36.3361, latitudeDelta: 0.1, longitudeDelta: 0.1 });
 
-  useEffect(() => { ilkKonumGetir(); }, []);
+  useEffect(() => { 
+    ilkKonumGetir(); 
+  }, []);
 
   const saatiHesapla = (offset) => {
     const d = new Date();
@@ -118,7 +118,7 @@ export default function App() {
         let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low, timeout: 5000 });
         const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setUserLocation(coords);
-        setMapRegion(p => ({ ...p, ...coords }));
+        setMapRegion(p => ({ ...p, ...coords, latitudeDelta: 0.1, longitudeDelta: 0.1 }));
         apiCek(coords.latitude, coords.longitude);
       } catch (err) { apiCek(41.2797, 36.3361); }
     } else { apiCek(41.2797, 36.3361); }
@@ -131,6 +131,13 @@ export default function App() {
     setModalVisible(true);
   };
 
+  const handleMapSelection = (coordinate) => {
+    setSelectedLocation(coordinate);
+    setMapRegion(p => ({ ...p, ...coordinate }));
+    apiCek(coordinate.latitude, coordinate.longitude);
+    setMapVisible(false);
+  };
+
   const isNight = simdikiHava?.weather[0].icon.includes('n');
   const weatherMain = simdikiHava?.weather[0].main;
 
@@ -138,6 +145,7 @@ export default function App() {
     <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={isNight ? ['#020111', '#191970'] : ['#4facfe', '#00f2fe']} style={StyleSheet.absoluteFill} />
+      
       {simdikiHava && (
         <>
           {isNight ? <MoonWithStars /> : <SunWithRays />}
@@ -145,7 +153,9 @@ export default function App() {
           {weatherMain === 'Snow' && <WeatherParticles type="Snow" />}
         </>
       )}
+
       <Text style={styles.signature}>made by SAD</Text>
+      
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.circleBtn} onPress={ilkKonumGetir}><Text style={{fontSize: 22}}>📍</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.circleBtn, {backgroundColor: '#FFD700'}]} onPress={() => setMapVisible(true)}><Text style={{fontSize: 22}}>🌍</Text></TouchableOpacity>
@@ -159,8 +169,11 @@ export default function App() {
               <View style={styles.timeBadge}><Text style={styles.timeText}>YEREL SAAT: {yerelSaat}</Text></View>
               <Text style={styles.heroTemp}>{Math.round(simdikiHava.main.temp)}°</Text>
               <Text style={styles.heroDesc}>{simdikiHava.weather[0].description.toUpperCase()}</Text>
-              <TouchableOpacity style={styles.detailBtn} onPress={() => detayGoster(simdikiHava)}><Text style={styles.detailBtnText}>ANALİZİ GÖR 🕒</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.detailBtn} onPress={() => detayGoster(simdikiHava)}>
+                <Text style={styles.detailBtnText}>ANALİZİ GÖR 🕒</Text>
+              </TouchableOpacity>
             </View>
+            
             <View style={styles.panel}>
               <View style={styles.handle} />
               <FlatList data={tahminler} renderItem={({item}) => (
@@ -191,16 +204,36 @@ export default function App() {
 
       <Modal visible={mapVisible} animationType="fade">
         <View style={{flex: 1, backgroundColor: '#000'}}>
-          <MapView style={StyleSheet.absoluteFill} region={mapRegion} onRegionChangeComplete={setMapRegion}
-            onLongPress={(e) => {
-              const c = e.nativeEvent.coordinate;
-              setSelectedLocation(c); setMapRegion(p => ({ ...p, ...c }));
-              apiCek(c.latitude, c.longitude); setMapVisible(false);
-            }}>
-            {userLocation && <Marker coordinate={userLocation} pinColor="red" />}
-            {selectedLocation && <Marker coordinate={selectedLocation} pinColor="blue" />}
+          <View style={styles.mapTooltip}>
+            <Text style={styles.mapTooltipText}>bilgilerini görmek istediğiniz yere basılı tutun</Text>
+          </View>
+
+          <MapView 
+            style={StyleSheet.absoluteFill} 
+            region={mapRegion}
+            onRegionChangeComplete={setMapRegion}
+            onLongPress={(e) => handleMapSelection(e.nativeEvent.coordinate)}
+            mapType="none" 
+            rotateEnabled={false}
+          >
+            <UrlTile 
+              urlTemplate="https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+              maximumZ={19}
+              tileSize={256}
+              shouldReplaceCustomUI={true}
+            />
+            
+            {userLocation && <Marker coordinate={userLocation} pinColor="red" title="Buradasınız" />}
+            
+            {selectedLocation && (
+              <Marker coordinate={selectedLocation}>
+                 <View style={styles.markerEmoji}><Text style={{fontSize: 30}}>📍</Text></View>
+              </Marker>
+            )}
           </MapView>
-          <TouchableOpacity style={styles.mapClose} onPress={() => setMapVisible(false)}><Text style={{fontWeight:'bold'}}>GERİ DÖN</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.mapClose} onPress={() => setMapVisible(false)}>
+            <Text style={{fontWeight:'bold', color: '#000'}}>GERİ DÖN</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
     </View>
@@ -240,5 +273,8 @@ const styles = StyleSheet.create({
   hourTime: { color: '#FFD700', fontSize: 12 },
   hourDeg: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   closeBtn: { marginTop: 25, backgroundColor: '#FFD700', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 20 },
-  mapClose: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: '#FFD700', paddingVertical: 15, paddingHorizontal: 50, borderRadius: 30 }
+  mapClose: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: '#FFD700', paddingVertical: 15, paddingHorizontal: 50, borderRadius: 30 },
+  mapTooltip: { position: 'absolute', top: 50, left: 20, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 15, zIndex: 10, borderWidth: 1, borderColor: 'rgba(255,215,0,0.3)', alignItems: 'center' },
+  mapTooltipText: { color: '#FFD700', fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
+  markerEmoji: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.8, shadowRadius: 2, elevation: 5 }
 });

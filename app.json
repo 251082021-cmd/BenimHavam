@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Benim Havam",
+    "name": "Havan Batsin",
     "slug": "Benim-Havam",
-    "version": "1.0.4",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.broski.benimhavam"
+      "bundleIdentifier": "com.broski.havanbatsin"
     },
     "android": {
       "adaptiveIcon": {
@@ -35,8 +35,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "93ead338-c63a-44c4-9a7b-020bd8e17bdc"
+        "projectId": "47287b76-0c80-47bf-98c7-c0b825661f22"
       }
-    }
+    },
+    "owner": "elifnazdemiray22"
   }
 }
