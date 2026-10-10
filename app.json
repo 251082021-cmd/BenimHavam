@@ -2,7 +2,7 @@
   "expo": {
     "name": "Havan Batsin",
     "slug": "Benim-Havam",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "orientation": "portrait",
     "icon": "./icon.png",
     "userInterfaceStyle": "light",
@@ -35,9 +35,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "47287b76-0c80-47bf-98c7-c0b825661f22"
+        "projectId": "93ead338-c63a-44c4-9a7b-020bd8e17bdc"
       }
     },
-    "owner": "elifnazdemiray22"
+    "owner": "safademir321"
   }
 }
