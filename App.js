@@ -1,11 +1,28 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Image, Alert, Modal, ScrollView, Dimensions, StatusBar, Animated, Easing, TextInput } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, FlatList, Alert, Modal, ScrollView, Dimensions, StatusBar, Animated, Easing, TextInput } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview'; 
 
 const { width, height } = Dimensions.get('window');
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY;
+
+const WeatherIconCustom = ({ iconCode, size = 38 }) => {
+  let emoji = '☀️';
+  if (iconCode.includes('01')) emoji = iconCode.includes('n') ? '🌙' : '☀️';
+  else if (iconCode.includes('02')) emoji = iconCode.includes('n') ? '☁️' : '⛅';
+  else if (iconCode.includes('03') || iconCode.includes('04')) emoji = '☁️';
+  else if (iconCode.includes('09') || iconCode.includes('10')) emoji = '🌧️';
+  else if (iconCode.includes('11')) emoji = '⚡';
+  else if (iconCode.includes('13')) emoji = '❄️';
+  else if (iconCode.includes('50')) emoji = '🌫️';
+
+  return (
+    <View style={[styles.customIconContainer, { width: size + 16, height: size + 16 }]}>
+      <Text style={{ fontSize: size }}>{emoji}</Text>
+    </View>
+  );
+};
 
 const SunWithRays = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -76,7 +93,7 @@ export default function App() {
   const [searchText, setSearchText] = useState("");
   const [secilenGunDetay, setSecilenGunDetay] = useState([]);
   const [secilenBaslik, setSecilenBaslik] = useState("");
-  const [yerelSaat, setYerelSaat] = useState('--:--');
+  const [yerelZamanBilgisi, setYerelZamanBilgisi] = useState('--:-- • --/--/--');
   const [tumVeriler, setTumVeriler] = useState([]);
   const [sehirOffset, setSehirOffset] = useState(0);
   const [userLocation, setUserLocation] = useState(null);
@@ -87,36 +104,76 @@ export default function App() {
     ilkKonumGetir(); 
   }, []);
 
-  const saatiHesaplaVeGetir = (offset) => {
+  const saatiVeTarihiHesapla = (offset) => {
     const d = new Date();
     const utcMs = d.getTime() + (d.getTimezoneOffset() * 60000);
     const targetTime = new Date(utcMs + (offset * 1000));
-    setYerelSaat(targetTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', hour12: false }));
+    
+    const saatStr = targetTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const gunStr = String(targetTime.getDate()).padStart(2, '0');
+    const ayStr = String(targetTime.getMonth() + 1).padStart(2, '0');
+    const yilStr = String(targetTime.getFullYear()).slice(-2);
+    
+    const formatliBilgi = `${saatStr} • ${gunStr}/${ayStr}/${yilStr}`;
+    setYerelZamanBilgisi(formatliBilgi);
     return targetTime;
   };
 
-  const veriyiIsle = (data) => {
+  // Koordinatlardan ilçe/mahalle adını bulma fonksiyonu
+  const ilceyiBulGetir = async (lat, lon) => {
+    try {
+      let adresler = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+      if (adresler && adresler.length > 0) {
+        let adres = adresler[0];
+        // Öncelik ilçe (subregion / district / city), yoksa şehir adı
+        let ilceAdi = adres.subregion || adres.district || adres.city || adres.name;
+        if (ilceAdi) {
+          setGosterilenSehir(ilceAdi);
+          return;
+        }
+      }
+    } catch (e) {}
+  };
+
+  const veriyiIsle = async (data, lat, lon) => {
     setTumVeriler(data.list);
+    
+    // Varsayılan olarak API'den gelen şehri ayarla, ardından hassas ilçe adını dene
     setGosterilenSehir(data.city.name);
+    if (lat && lon) {
+      await ilceyiBulGetir(lat, lon);
+    }
+
     const offset = data.city.timezone;
     setSehirOffset(offset);
     
-    saatiHesaplaVeGetir(offset);
-    setSimdikiHava(data.list[0]);
+    const hedefZaman = saatiVeTarihiHesapla(offset);
     
+    const yil = hedefZaman.getFullYear();
+    const ay = String(hedefZaman.getMonth() + 1).padStart(2, '0');
+    const gun = String(hedefZaman.getDate()).padStart(2, '0');
+    const bugunStr = `${yil}-${ay}-${gun}`;
+
+    setSimdikiHava(data.list[0]);
+
     let gunlukHarita = {};
     data.list.forEach(item => {
       const yerelItemZamani = new Date((item.dt + offset) * 1000);
-      const tarihKey = yerelItemZamani.toISOString().split('T')[0];
+      const itemYil = yerelItemZamani.getFullYear();
+      const itemAy = String(yerelItemZamani.getMonth() + 1).padStart(2, '0');
+      const itemGun = String(yerelItemZamani.getDate()).padStart(2, '0');
+      const tarihKey = `${itemYil}-${itemAy}-${itemGun}`;
       
-      if (!gunlukHarita[tarihKey]) {
-        gunlukHarita[tarihKey] = item;
-      } else if (item.dt_txt.includes("12:00:00")) {
-        gunlukHarita[tarihKey] = item;
+      if (tarihKey !== bugunStr) {
+        if (!gunlukHarita[tarihKey]) {
+          gunlukHarita[tarihKey] = item;
+        } else if (item.dt_txt.includes("12:00:00")) {
+          gunlukHarita[tarihKey] = item;
+        }
       }
     });
 
-    setTahminler(Object.values(gunlukHarita).slice(0, 6));
+    setTahminler(Object.values(gunlukHarita));
   };
 
   const apiCek = async (lat, lon) => {
@@ -125,7 +182,7 @@ export default function App() {
       const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=tr`);
       const data = await res.json();
       if (res.ok) {
-        veriyiIsle(data);
+        await veriyiIsle(data, lat, lon);
       }
     } catch (e) { Alert.alert("Hata", "Veri alınamadı."); }
     finally { setYukleniyor(false); }
@@ -139,7 +196,8 @@ export default function App() {
       const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${searchText.trim()}&appid=${API_KEY}&units=metric&lang=tr`);
       const data = await res.json();
       if (res.ok) {
-        veriyiIsle(data);
+        setGosterilenSehir(data.city.name); // Aramalarda doğrudan aranan şehir/ilçe adını göster
+        await veriyiIsle(data, data.city.coord.lat, data.city.coord.lon);
         const coords = { latitude: data.city.coord.lat, longitude: data.city.coord.lon };
         setSelectedLocation(coords);
         setMapRegion(coords);
@@ -159,56 +217,54 @@ export default function App() {
         setUserLocation(coords);
         setMapRegion(coords);
         apiCek(coords.latitude, coords.longitude);
-      } catch (err) { apiCek(41.2797, 36.3361); }
-    } else { apiCek(41.2797, 36.3361); }
+        return;
+      } catch (err) {}
+    }
+    apiCek(41.2797, 36.3361);
   };
 
   const detayGoster = (item) => {
     let secilenTarihStr;
     let yerelItemZamani;
 
-    if (item.dt === simdikiHava?.dt) {
-      const simdiSehirZamani = new Date((Date.now() + (new Date().getTimezoneOffset() * 60000) + (sehirOffset * 1000)));
-      secilenTarihStr = simdiSehirZamani.toISOString().split('T')[0];
-      yerelItemZamani = simdiSehirZamani;
+    const hedefZaman = new Date(Date.now() + (new Date().getTimezoneOffset() * 60000) + (sehirOffset * 1000));
+    const bugunYil = hedefZaman.getFullYear();
+    const bugunAy = String(hedefZaman.getMonth() + 1).padStart(2, '0');
+    const bugunGun = String(hedefZaman.getDate()).padStart(2, '0');
+    const bugunStr = `${bugunYil}-${bugunAy}-${bugunGun}`;
+
+    const isBugun = (item.dt === simdikiHava?.dt);
+
+    if (isBugun) {
+      secilenTarihStr = bugunStr;
+      yerelItemZamani = hedefZaman;
     } else {
       yerelItemZamani = new Date((item.dt + sehirOffset) * 1000);
-      secilenTarihStr = yerelItemZamani.toISOString().split('T')[0];
+      const iYil = yerelItemZamani.getFullYear();
+      const iAy = String(yerelItemZamani.getMonth() + 1).padStart(2, '0');
+      const iGun = String(yerelItemZamani.getDate()).padStart(2, '0');
+      secilenTarihStr = `${iYil}-${iAy}-${iGun}`;
     }
     
-    // O güne ait tüm saatlik verileri al
     let filtrelenmisDetaylar = tumVeriler.filter(v => {
       const vZaman = new Date((v.dt + sehirOffset) * 1000);
-      return vZaman.toISOString().split('T')[0] === secilenTarihStr;
+      const vYil = vZaman.getFullYear();
+      const vAy = String(vZaman.getMonth() + 1).padStart(2, '0');
+      const vGun = String(vZaman.getDate()).padStart(2, '0');
+      const vTarihStr = `${vYil}-${vAy}-${vGun}`;
+      return vTarihStr === secilenTarihStr;
     });
 
-    // Eğer o güne ait filtrelenen liste boş kalırsa (saat çok ilerlediyse), günün son 3-4 verisini emniyet olarak göster
     if (filtrelenmisDetaylar.length === 0) {
-      const tumGunVerileri = tumVeriler.filter(v => {
-        const vZaman = new Date((v.dt + sehirOffset) * 1000);
-        return vZaman.toISOString().split('T')[0] === secilenTarihStr;
-      });
-      if (tumGunVerileri.length > 0) {
-        filtrelenmisDetaylar = tumGunVerileri;
-      } else {
-        // Hiç bulamazsa tıklanan öğeyi koy
-        filtrelenmisDetaylar = [item];
-      }
+      filtrelenmisDetaylar = [item];
     }
 
-    // 21:00 tahmini bittikten sonra sonraki günün 00:00 verisini ekle ve rozet koy
-    const sonEleman = filtrelenmisDetaylar[filtrelenmisDetaylar.length - 1];
-    if (sonEleman) {
-      const sonIndex = tumVeriler.findIndex(v => v.dt === sonEleman.dt);
-      const sonrakiVeri = tumVeriler[sonIndex + 1];
-      if (sonrakiVeri) {
-        const sonrakiZaman = new Date((sonrakiVeri.dt + sehirOffset) * 1000);
-        const sonrakiSaatStr = sonrakiZaman.toISOString().split('T')[1].slice(0,5);
-        if (sonrakiSaatStr === "00:00") {
-          sonrakiVeri.isNextDayHeader = true;
-          sonrakiVeri.nextDayName = sonrakiZaman.toLocaleDateString('tr-TR', { weekday: 'long' });
-          filtrelenmisDetaylar.push(sonrakiVeri);
-        }
+    if (isBugun && simdikiHava) {
+      const ilkVeriDt = filtrelenmisDetaylar[0]?.dt;
+      if (ilkVeriDt && simdikiHava.dt < ilkVeriDt) {
+        filtrelenmisDetaylar.unshift(simdikiHava);
+      } else if (!filtrelenmisDetaylar.some(v => v.dt === simdikiHava.dt)) {
+        filtrelenmisDetaylar.unshift(simdikiHava);
       }
     }
 
@@ -221,7 +277,8 @@ export default function App() {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.lat && data.lng) {
-        const coordinate = { latitude: data.lat, longitude: data.lng };
+        let normalizedLng = ((data.lng + 180) % 360 + 360) % 360 - 180;
+        const coordinate = { latitude: data.lat, longitude: normalizedLng };
         setSelectedLocation(coordinate);
         setMapRegion(coordinate);
         apiCek(coordinate.latitude, coordinate.longitude);
@@ -242,7 +299,7 @@ export default function App() {
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <style>
-        body, html { padding: 0; margin: 0; width: 100%; height: 100%; background: #111; }
+        body, html { padding: 0; margin: 0; width: 100%; height: 100%; background: #fff; }
         #map { width: 100%; height: 100%; }
         .leaflet-control-attribution { display: none; }
       </style>
@@ -250,8 +307,16 @@ export default function App() {
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { zoomControl: false }).setView([${mapRegion.latitude}, ${mapRegion.longitude}], 8);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(map);
+        var map = L.map('map', { 
+          zoomControl: false,
+          maxBounds: [[-90, -180], [90, 180]],
+          maxBoundsViscosity: 1.0
+        }).setView([${mapRegion.latitude}, ${mapRegion.longitude}], 5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+          maxZoom: 19,
+          noWrap: false
+        }).addTo(map);
 
         ${userLocation ? `
         var userIcon = L.icon({
@@ -304,7 +369,7 @@ export default function App() {
           <View style={{ flex: 1 }}>
             <View style={styles.hero}>
               <Text style={styles.heroCity}>{gosterilenSehir.toUpperCase()}</Text>
-              <View style={styles.timeBadge}><Text style={styles.timeText}>YEREL SAAT: {yerelSaat}</Text></View>
+              <View style={styles.timeBadge}><Text style={styles.timeText}>{yerelZamanBilgisi}</Text></View>
               <Text style={styles.heroTemp}>{Math.round(simdikiHava.main.temp)}°</Text>
               <Text style={styles.heroDesc}>{simdikiHava.weather[0].description.toUpperCase()}</Text>
               <TouchableOpacity style={styles.detailBtn} onPress={() => detayGoster(simdikiHava)}>
@@ -321,7 +386,7 @@ export default function App() {
                 return (
                   <TouchableOpacity style={styles.row} onPress={() => detayGoster(item)}>
                     <Text style={styles.rowDay}>{gunAdi}</Text>
-                    <Image style={{width:50, height:50}} source={{uri: `https://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`}} />
+                    <WeatherIconCustom iconCode={item.weather[0].icon} size={32} />
                     <Text style={styles.rowTemp}>{Math.round(item.main.temp)}°</Text>
                   </TouchableOpacity>
                 );
@@ -337,17 +402,12 @@ export default function App() {
             <Text style={styles.modalTitle}>{secilenBaslik.toUpperCase()}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>{secilenGunDetay.map((h, i) => {
                 const saatZamani = new Date((h.dt + sehirOffset) * 1000);
-                const saatStr = saatZamani.toISOString().split('T')[1].slice(0,5);
+                const saatStr = saatZamani.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
                 return (
                   <View key={i} style={styles.hourCard}>
-                    {h.isNextDayHeader && (
-                      <View style={styles.nextDayBadge}>
-                        <Text style={styles.nextDayText}>👉 {h.nextDayName} Başlıyor</Text>
-                      </View>
-                    )}
                     <Text style={styles.hourTime}>{saatStr}</Text>
-                    <Image style={{width:45, height:45}} source={{uri: `https://openweathermap.org/img/wn/${h.weather[0].icon}.png` }} />
+                    <WeatherIconCustom iconCode={h.weather[0].icon} size={28} />
                     <Text style={styles.hourDeg}>{Math.round(h.main.temp)}°</Text>
                   </View>
                 );
@@ -395,8 +455,8 @@ export default function App() {
             scrollEnabled={false}
             bounces={false}
           />
-          <View style={styles.mapTooltip}>
-            <Text style={styles.mapTooltipText}>bilgilerini görmek istediğiniz yere dokunun</Text>
+          <View style={styles.mapTooltipLight}>
+            <Text style={styles.mapTooltipTextLight}>bilgilerini görmek istediğiniz yere dokunun</Text>
           </View>
           <TouchableOpacity style={styles.mapClose} onPress={() => setMapVisible(false)}>
             <Text style={{fontWeight:'bold', color: '#000'}}>GERİ DÖN</Text>
@@ -425,10 +485,13 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
   rowDay: { color: 'white', fontSize: 18, fontWeight: '600', flex: 1 },
   rowTemp: { color: 'white', fontSize: 26, fontWeight: 'bold' },
+  
+  customIconContainer: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', marginRight: 10 },
+
   celestialContainer: { position: 'absolute', top: 165, right: -15, alignItems: 'center', justifyContent: 'center' },
   sun: { width: 85, height: 85, backgroundColor: '#FFD700', borderRadius: 43, zIndex: 2 },
   sunRays: { position: 'absolute', width: 140, height: 140, backgroundColor: 'rgba(255, 215, 0, 0.15)', borderRadius: 70, borderWidth: 1, borderColor: 'rgba(255, 215, 0, 0.2)', zIndex: 1 },
-  moon: { width: 75, height: 75, backgroundColor: '#fdfce1', borderRadius: 38, zIndex: 2 },
+  moon: { width: 75, height: 75, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 38, zIndex: 2 },
   moonGlow: { position: 'absolute', width: 125, height: 125, backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 63, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', zIndex: 1 },
   star: { position: 'absolute', width: 3, height: 3, backgroundColor: 'white', borderRadius: 2 },
   rainDrop: { position: 'absolute', width: 1.5, height: 20, backgroundColor: 'rgba(255,255,255,0.4)' },
@@ -443,13 +506,11 @@ const styles = StyleSheet.create({
   hourCard: { alignItems: 'center', marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.05)', padding: 15, borderRadius: 20, position: 'relative', minWidth: 70 },
   hourTime: { color: '#FFD700', fontSize: 12 },
   hourDeg: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  nextDayBadge: { position: 'absolute', top: -16, left: -10, backgroundColor: '#FFD700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, zIndex: 10, width: 110, alignItems: 'center' },
-  nextDayText: { color: '#000', fontSize: 9, fontWeight: 'bold' },
   closeBtn: { marginTop: 25, backgroundColor: '#FFD700', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 20 },
-  mapModalContainer: { flex: 1, backgroundColor: '#111' },
-  webViewMap: { flex: 1, backgroundColor: '#111' },
+  mapModalContainer: { flex: 1, backgroundColor: '#fff' },
+  webViewMap: { flex: 1, backgroundColor: '#fff' },
   mapClose: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: '#FFD700', paddingVertical: 15, paddingHorizontal: 50, borderRadius: 30, zIndex: 20 },
-  mapTooltip: { position: 'absolute', top: 50, left: 20, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 15, zIndex: 20, borderWidth: 1, borderColor: 'rgba(255,215,0,0.3)', alignItems: 'center' },
-  mapTooltipText: { color: '#FFD700', fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
+  mapTooltipLight: { position: 'absolute', top: 50, left: 20, right: 20, backgroundColor: 'rgba(255,255,255,0.9)', padding: 10, borderRadius: 15, zIndex: 20, borderWidth: 1, borderColor: 'rgba(0,0,0,0.2)', alignItems: 'center' },
+  mapTooltipTextLight: { color: '#333', fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
   markerEmoji: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.8, shadowRadius: 2, elevation: 5 }
 });
